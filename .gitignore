@@ -1,0 +1,12 @@
+.mimocode
+
+build/
+target/
+result
+result-*
+noip-ioi-capacity/target/
+*.pdf
+*.png
+*.svg
+docs/compose
+research
