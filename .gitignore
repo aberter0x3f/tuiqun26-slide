@@ -8,5 +8,7 @@ noip-ioi-capacity/target/
 *.pdf
 *.png
 *.svg
+!assets/generated/mst-case-vis.pdf
+!assets/generated/mst-graph-vis.pdf
 docs/compose
 research

@@ -1,4 +1,5 @@
 #import "@preview/touying:0.7.4": *
+#import "@preview/fletcher:0.5.8" as fletcher: edge, node
 #import themes.university: *
 
 #let fonts = (
@@ -8,6 +9,11 @@
   math: "New Computer Modern Math",
   cjk-serif: "Source Han Serif SC",
   cjk-sans: "Sarasa UI SC",
+)
+
+#let fletcher-diagram = touying-reducer.with(
+  reduce: fletcher.diagram,
+  cover: fletcher.hide,
 )
 
 #let academic-table(columns: (), ..cells) = table(
@@ -27,10 +33,9 @@
     receive-body-for-new-section-slide-fn: false,
   ),
   config-info(
-    title: [Hull],
-    short-title: [Hull],
-    subtitle: [基于 Nix 与 WASM 的算法竞赛本地造题系统],
-    author: [Aberter0x3F],
+    title: [Hull & WAAP],
+    subtitle: [WASM Judge 的应用],
+    author: [Aberter0x3F (aberter0x3f\@sjtu.edu.cn)],
     date: datetime(year: 2026, month: 7, day: 12),
     institution: [TUIQUN '26],
   ),
@@ -69,15 +74,23 @@
 
 #components.adaptive-columns(outline(title: none, indent: 1em, depth: 1))
 
-= 引言
+= Hull 引言
 
 == 从 WASM Judge 到 Hull
+
+=== 回忆
+
+WASM Judge 是一种评测方式, 其将选手程序编译为 WASM 而非机器码, 在受限的虚拟机中以 JIT / AOT 形式运行. 实现以中位数 16% 的性能损失达到绝对稳定的评测结果和精确到 1 tick / 1 Byte 的时空颗粒度.
+
+---
 
 === 去年的问题
 
 根据 fstqwq 的意见, 本项目如果要普及需要一个与它非常适配的情景.
 
 #align(center)[*基于 Nix 的本地造题系统?*]
+
+https://github.com/rindag-devs/hull 欢迎 star.
 
 ---
 
@@ -91,23 +104,23 @@ WASM Judge 已经实现了评测尺度稳定, 允许安全并行. 但作为造�
 
 ---
 
-Nix 是版本管理工具.
+Nix 是依赖管理工具.
 
 ```nix
 inputs = {
-  nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-  cplib = ...;
-  hull = ... ;
+  nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05"; cplib = ...; hull = ... ;
 };
 
 outputs = {self, nixpkgs, hull, cplib}: let ... in {
-  hullProblems = {
-    major = hullLib.evalProblem ./problem/major { };
-    stone = hullLib.evalProblem ./problem/stone { };
-    count = hullLib.evalProblem ./problem/count { };
-  };
-  hullContests.default = hullLib.evalContest ./contest.nix { };
-}
+  perSystem = forEachSystem (system: {
+    hullProblems = {
+      major = hullLib.evalProblem ./problem/major { };
+      stone = hullLib.evalProblem ./problem/stone { };
+      count = hullLib.evalProblem ./problem/count { };
+    };
+    hullContests.default = hullLib.evalContest ./contest.nix { };
+  });
+};
 ```
 
 `flake.nix` + `flake.lock` 可声明, 锁定工具链.
@@ -118,8 +131,8 @@ Nix 是函数式编程语言.
 
 ```nix
 {
-  validator = { src = ./validator.cpp; tests = ...; };
-  checker = { src = ./checker.cpp; tests = ...; };
+  validator = { src = ./validator.23.cpp; tests = ...; };
+  checker = { src = ./checker.23.cpp; tests = ...; };
   testCases = {
     random-small = {
       generator = "rand";
@@ -136,8 +149,8 @@ Nix 是函数式编程语言.
 ---
 
 ```nix
-  solutions = {
-    src = ./solution/std.20.cpp;
+  solutions.std = {
+    src = ./solution/std.23.cpp;
     mainCorrectSolution = true;
     subtaskPredictions = {
       "0" = { score, ... }: score == 1.0;
@@ -147,7 +160,7 @@ Nix 是函数式编程语言.
   documents = { ... };
   targets = {
     default = hull.problemTarget.common;
-    hydro = hull.problemTarget.hydro.batch { statements.en = "statement.en.pdf"; };
+    hydro = hull.problemTarget.hydro { statements.en = "statement.en.pdf"; };
   };
 }
 ```
@@ -159,39 +172,43 @@ Nix 是函数式编程语言.
 Nix 是脚本语言.
 
 #grid(
-  columns: 2,
+  columns: (50%, 50%),
   [
     ```bash
     $ ls nix/lib/problemTarget
-    .
-    ├── hydroCustom
-    │   ├── checker.c
-    │   └── default.nix
-    ├── lemonCustom
-    │   ├── default.nix
-    │   └── watcher.c
-    ├── luogu
-    │   ├── default.nix
-    │   └── wrapper.c
-    ├── uoj
-    │   ├── default.nix
-    │   └── wrapper.c
+    nix/lib/problemTarget/
+    ├── hydro/
+    │   ├── checker.c
+    │   └── default.nix
+    ├── legacy/
+    │   ├── luogu/
+    │   │   ├── default.nix
+    │   │   └── wrapper.c
+    │   ├── uoj/
+    │   │   ├── default.nix
+    │   │   └── wrapper.c
+    │   ├── cms.nix
+    │   ├── domjudge.nix
+    │   ├── hydro.nix
+    │   └── lemon.nix
     ```
   ],
   [
     ```bash
-    ├── uojCustom
-    │   ├── README.txt
-    │   ├── default.nix
-    │   ├── judger.c
-    │   ├── judger.mk
-    │   └── judger.sh.in
-    ├── cms.nix
+    ├── lemon/
+    │   ├── default.nix
+    │   └── watcher.c
+    ├── uoj/
+    │   ├── supervisor/
+    │   │   ├── src/
+    │   │   ├── Cargo.lock
+    │   │   └── Cargo.toml
+    │   ├── README.txt
+    │   ├── default.nix
+    │   ├── judger.mk
+    │   └── prepare.c
     ├── common.nix
-    ├── default.nix
-    ├── domjudge.nix
-    ├── hydro.nix
-    └── lemon.nix
+    └── default.nix
     ```
   ],
 )
@@ -230,15 +247,13 @@ We can do them all in one.
 
 第一次 Nix 求值产生静态 metadata 和待实现的 WASM artifacts. Rust runtime 实现这些 artifacts, 并行运行 validator, checker 和 solutions. 分析结果加入 Nix store 后回注同一组 modules, 由第二次求值检查完整断言并构建 target.
 
-= Features
+= Hull Features
 
 == 通用
 
 沙盒式评测, 构建, 验证, 打包.
 
 正常造题系统该有的我们都有.
-
-不会还有出题系统运行选手程序没沙盒吧? \@tuack
 
 == Traits
 
@@ -345,8 +360,13 @@ We can do them all in one.
 - 搬题时无需考虑 subtask 对应关系, 改为自动化分配.
 - Hack 直接加入对应 subtask.
 
-== 题面集成
+== Typst 集成
 
+嵌入 traits & subtask 表格, 样例, 题目信息. 基于 template 排版渲染等基本功能支持.
+
+正常造题系统该有的我们都有.
+
+---
 
 #[
   #set text(size: 0.7em)
@@ -379,7 +399,21 @@ We can do them all in one.
 
 ---
 
-// 放两张图并列, mst 题目的 xcpc template 中的 test case & graph vis.
+通过 validator 中的规则直接实现特殊渲染. 例如 Codeforces 风格的 test case 分组染色, 以及图可视化.
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 1em,
+  align: center,
+  [
+    #image("assets/generated/mst-case-vis.pdf", width: 100%)
+    #align(center)[_`hull/case`: testcase 分组染色_]
+  ],
+  [
+    #image("assets/generated/mst-graph-vis.pdf", width: 100%)
+    #align(center)[_`hull/graph`: 图结构可视化_]
+  ],
+)
 
 == Custom judger
 
@@ -393,7 +427,7 @@ Eg: #link("https://uoj.ac/problem/593")[UOJ 新年的军队] 使用两阶段评�
 
 资源使用取两个阶段的最大值, 输出两个文件 `first` 与 `second`.
 
-Hull 不假设 "一次运行, 一次 checker". 题目可以把前一阶段输出转换为后一阶段输入, 再由 validator 检查转换结果. 最终仍由统一 runtime data 表达整个评测过程.
+题目可以把前一阶段输出转换为后一阶段输入, 再由 validator 检查转换结果. 最终仍由统一 runtime data 表达整个评测过程.
 
 == Custom target
 
@@ -402,13 +436,13 @@ Nix 语言具有极高扩展性.
 ```nix
 targets = {
   default = hull.problemTarget.common;
-  hydroCustom = hull.problemTarget.hydroCustom { statements = { en = "statement.en.pdf"; }; };
-  lemonCustom = hull.problemTarget.lemonCustom { solutionExtNames = lib.mapAttrs (_: _: "cpp") config.solutions; };
-  uojCustom = hull.problemTarget.uojCustom { };
-  uojCustomAarch64 = hull.problemTarget.uojCustom {
+  hydro = hull.problemTarget.hydro { statements = { en = "statement.en.pdf"; }; };
+  lemon = hull.problemTarget.lemon { solutionExtNames = lib.mapAttrs (_: _: "cpp") config.solutions; };
+  uoj = hull.problemTarget.uoj { };
+  uojAarch64 = hull.problemTarget.uoj {
     targetSystem = "aarch64-linux";
   };
-  myCustomTarget = import ./myCustomTarget.nix {}; # 自定义外接 target
+  myTarget = import ./myTarget.nix {}; # 自定义外接 target
 };
 ```
 
@@ -436,8 +470,6 @@ Hull 还在每个测试点内并行评测多份解法. Tick 独立于共享墙�
   columns: (1fr, 2fr),
   [*硬件*],
   [双路 Kunpeng 920, 128 cores],
-  [*比赛*],
-  [6 题],
   [*评测规模*],
   [test case $times$ solution > 3000],
   [*runtime 用时*],
@@ -446,7 +478,10 @@ Hull 还在每个测试点内并行评测多份解法. Tick 独立于共享墙�
   [< 90 s],
 )
 
-该实验来自一场 6 题 2 天真实 NOI 风格模拟赛. load average 长期超过 100, 说明调度器能够有效利用超算节点的多核并行能力. 相较 tuack 达到数十倍效率提升.
+6 题 2 天真实 NOI 风格模拟赛. load average 长期超过 105, 说明调度器能够有效利用超算节点的多核并行能力. 相较 tuack 达到数十倍效率提升.
+
+- 双路 Kunpeng 920 TPS: $5.6 dot 10^11$.
+- 双路 Intel Xeon Platinum 8358 TPS: $1.23 dot 10^12$.
 
 ---
 
@@ -458,7 +493,108 @@ NOIP 2025 全国共 7,546 个正式参赛者, 四题共 90 个 test case. 通过
 
 代码参考项目目录下的 `noip-ioi-capacity/` 目录.
 
-= 部署与比较
+== AI Agent Friendly
+
+都 2026 了, 还在人工出题?
+
+我们制作了一个 skill 给 AI 阅读，详细列出了每个步骤的最佳实践．以后直接直接让 AI 生成题目后人工修改就好了．
+
+Using an AI agent is the recommended way to create a Hull problem. Point an agent that supports Agent Skills to the #link("https://hull.aberter0x3f.top/.well-known/agent-skills/index.json")[Hull skill index] and ask it to use `author-hull-problems`. The #link("https://hull.aberter0x3f.top/.well-known/agent-skills/author-hull-problems.tar.gz")[skill archive] is also available directly.
+
+---
+
+#align(center)[
+  *要求* $arrow.r$ *题面与解法* $arrow.r$ *程序组件* $arrow.r$ *数据与子任务* $arrow.r$ *校准*
+]
+
+- 从用户要求出发, 补齐 workspace 与 Hull 配置.
+- 同步生成正式题面、std 与暴力解法, 再实现 validator、checker、generator 等 CPLib 组件.
+- 以 traits 描述数据性质, 组织 testcase、subtask 与预测, 依据验证结果迭代校准 limits.
+- 最终构建题面和 target, 复核程序、数据、计分语义与交付产物.
+
+GPT 5.6 Sol high 仅根据一句 prompt, 即可将一道 AtCoder ARC C 改编为完整 OI 风格题目, 自动完成题面、std、暴力、数据以及 subtask / traits 划分.
+
+---
+
+=== 调用示例
+
+- 使用 author-hull-problems skill, 将 https://codeforces.com/contest/XXXX/problem/X 转换为 NOI 风格的模拟赛题目, 要求题面全部重写为中文的形式化题面. 在合理的范围内加大数据范围, 时间限制 1e10 tick. 设置多种且合理的部分分.
+- 使用 author-hull-problems skill, 使用 idea [pasted text] 和 std [pasted text], 生成完整的 ICPC 风格题目. 显示语言使用英文.
+- 搬运题目 https://loj.ac/p/XXXX, 直接使用原版数据范围, 数据全部重造为强力数据, 直接把原版题面翻译为中文.
+
+---
+
+#[
+  #set text(size: 0.8em)
+
+  #academic-table(
+    columns: (1.25fr, 0.8fr, 0.8fr, 0.8fr, 1fr, 0.8fr, 0.8fr),
+    [*题目*],
+    [*题面*],
+    [*暴力*],
+    [*std*],
+    [*C/V/G*],
+    [*数据*],
+    [*S/T*],
+    [ULR3 A],
+    [D3\*],
+    [M2],
+    [],
+    [M2],
+    [],
+    [],
+    [ULR3 F],
+    [D3\*],
+    [M2],
+    [],
+    [M2\*],
+    [],
+    [],
+    [省集 A],
+    [D3],
+    [G54],
+    [G54],
+    [G54],
+    [G54],
+    [G54],
+    [省集 B],
+    [D3],
+    [G54],
+    [G54P],
+    [G54],
+    [G54\*],
+    [],
+    [省集 C],
+    [D3],
+    [G54],
+    [],
+    [G54],
+    [G54\*],
+    [M3],
+    [未公开 1],
+    [G55],
+    [G55],
+    [G55],
+    [G55],
+    [G55],
+    [G55],
+    [未公开 2],
+    [G55],
+    [G55],
+    [],
+    [G55],
+    [G55\*],
+    [G55],
+  )
+
+  `C/V/G` = checker / validator / generator, `S/T` = subtask / traits.
+
+  空白表示人类实现, `*` 表示有人类参与.
+
+  D3 = DeepSeek V3.2; M2 = Gemini 2.5 Pro; M3 = Gemini 3.1 Pro; G54 = GPT-5.4; G54P = GPT-5.4 Pro; G55 = GPT-5.5.
+]
+
+= Hull 部署与比较
 
 == 部署支持
 
@@ -489,7 +625,7 @@ NOIP 2025 全国共 7,546 个正式参赛者, 四题共 90 个 test case. 通过
   [*Hydro*],
   [`proot` 映射私有 Nix store],
   [*UOJ*],
-  [`nix-user-chroot` 启动完整闭包],
+  [supervisor 启动完整闭包],
   [*Lemon*],
   [watcher + special judge + 完整闭包],
 )
@@ -512,7 +648,7 @@ NOIP 2025 全国共 7,546 个正式参赛者, 四题共 90 个 test case. 通过
   [表达 batch 与 pass-fail],
 )
 
-(L) 表示 Legacy, 适用于无法取得平台管理员 / custom judger 权限的情况的使用平台原生评测方案的兼容 target 配置.
+(L) 表示 Legacy, 适用于无法取得平台管理员或后台特殊配置权限的情况的使用平台原生评测方案的兼容 target 配置.
 
 == 同类项目比较
 
@@ -554,7 +690,15 @@ NOIP 2025 全国共 7,546 个正式参赛者, 四题共 90 个 test case. 通过
 
 ---
 
-=== Local-first 趋势
+=== Hull
+
+- Local-first 与 Git-native: 题目源文件留在作者控制的目录中, 可直接接入 review、hooks 与 CI.
+- Nix 固定依赖和构建环境, WASM tick 固定评测尺度, 最终产物可 bit-to-bit 复现.
+- validator / checker tests、solution predictions、traits 与 subtasks 共同构成一致性验证体系.
+- Custom judger 可表达多阶段、多输出评测; custom target 可将 Hull runtime 与完整语义部署到 OJ.
+- 声明式配置和 `author-hull-problems` skill 让 Agent 能从最小题目规格推进到数据、校准与交付.
+
+== Local-first 趋势
 
 #align(center)[本地文件 $arrow.r$ Git $arrow.r$ hooks / CI $arrow.r$ Agent $arrow.r$ 发布平台]
 
@@ -562,10 +706,193 @@ NOIP 2025 全国共 7,546 个正式参赛者, 四题共 90 个 test case. 通过
 
 题面, 解法, validator, checker 和 generator 放回本地目录. Git 保存权威历史, hooks 和 CI 执行检查, 平台只在需要协作或发布时同步.
 
-= 结论
+= Hull 结论
 
 == 目前的应用
 
 Hull 已被应用于山东三轮省集的命题, 以及 #link("https://uoj.ac/contest/103")[UOJ Long Round 3] 的 A, F 题命题工作.
 
 预计将在今年于 UOJ 举办一场 UOJ WASM Round, 尽请期待!
+
+= WAAP 背景与动机
+
+== 现有代码查重方案的局限
+
+=== 静态文本分析
+
+目前的查重系统 (如 JPlag, Moss) 主要基于源码文本或抽象语法树 (AST) .
+
+- *标识符重命名*: 通过批量替换变量名、函数名, 轻松绕过基于 Token 的匹配.
+- *结构混淆*: 利用 OLLVM 等工具进行控制流平坦化, 使 AST 结构完全改变.
+- *等价逻辑替换*: 将 `for` 循环重写为 `while` + `goto`, 或展开递归函数, 导致静态特征完全失效.
+
+---
+
+=== 动态分析
+
+- *平台依赖性强*: 依赖 `ptrace` (Linux) 调试 API (Windows) , 难以跨平台.
+- *性能开销大*: 基于 Hook 的系统调用拦截会严重拖慢评测速度.
+- *安全性风险*: 在评测机直接运行不可信的二进制代码进行动态插桩, 存在沙盒逃逸风险.
+
+== WAAP 的核心理念
+
+固定输入, 将代码在实际运行时的表现编码为向量.
+
+= WAAP 算法设计详解
+
+== Winnowing 指纹生成算法
+
+记录运行时所有指令类型, 忽略操作数, 映射为枚举值.
+
+$
+  A = [t_1, t_2, t_3, dots, t_N]
+$
+
+设定窗口大小 $W$ (如 8) , 计算连续 $W$ 个指令的 Rolling Hash.
+
+$
+  h_i = H(t_i, t_(i+1), dots, t_(i+W-1))
+$
+
+设定块大小 $B$ (如 128) . 在每个滑动窗口覆盖的范围内, 选取 *Hash 值最大* 的那个作为指纹.
+
+$
+  f_j = max { h_k | k in "Range"_j }
+$
+
+---
+
+=== 算法特性
+
+- *压缩率*: 数据量减少为原来的 $1/B$, 空间复杂度 $O(N/B)$.
+- *抗干扰*: 如果选手在代码中插入了一条垃圾指令, 只会影响包含该指令的 $W$ 个 Hash 值. 只要这 $W$ 个 Hash 值没有成为新的局部最大值, 最终生成的指纹序列 $F$ 甚至可能 *完全不变*.
+
+== 相似度计算模型
+
+将生成的指纹序列转换为向量空间模型 (Vector Space Model).
+
+统计指纹序列 $F$ 中每个特征 Hash 出现的频率, 构建稀疏向量.
+
+$
+  bold(V)_A = { (h, "count") | h in F_A }
+$
+
+计算两个代码向量的夹角余弦值, 值越接近 1 表示越相似.
+
+$
+  "Sim"(A, B) = (bold(V)_A dot.c bold(V)_B)/(norm(bold(V)_A) norm(bold(V)_B))
+$
+
+相比于编辑距离 (Levenshtein) 的 $O(N^2)$ 复杂度, 向量点积仅需 $O(N/B)$, 能够实现大规模比对.
+
+= WAAP 系统架构与实现
+
+== 处理流程图
+
+#align(center)[
+  #fletcher-diagram(
+    node-stroke: 1pt,
+
+    // 第一行: 主流程
+    node((0, 0), [源码], name: <src>),
+    edge("->", [Clang]),
+
+    node((1, 0), [WASM\ (.o)], name: <obj>),
+    edge("->", [插桩器]),
+
+    node((2, 0), [Patched\ WASM], name: <wasm>),
+    edge("->"),
+
+    node((3, 0), [Runner], name: <runner>),
+    edge("->"),
+
+    node((4, 0), [相似度\ 报告], name: <report>),
+
+    // 第二行: 辅助模块
+    node((1, 1), [指纹模块\ (C)], name: <fp>),
+
+    // 跨行连接: 指纹模块 -> Patched WASM
+    // 使用相对路径连接, corner: right 表示直角折线
+    edge(<fp>, <wasm>, "-|>", [静态链接], label-side: right),
+  )
+]
+
+== 模块内记录
+
+如果在 WASM 中每执行一条指令就调用 `call host_function()`, 频繁的 VM 上下文切换会导致运行速度极慢, 无法用于实际评测.
+
+我们将记录逻辑下放到 WASM 模块内部:
+
+1. 编写一个 C 语言模块, 包含 `record(type)` 函数, 内部维护一个 Ring Buffer 和 Hash 状态机.
+2. 通过修改二进制 (Binary Patching) , 在每个 Basic Block 和关键指令前插入 `call $record`.
+3. 仅在程序结束时, 通过一次 Host Call 导出内存中的指纹数组.
+
+== 指令归一化策略
+
+为了进一步消除编译器优化的干扰, 我们将 WASM 指令映射为粗粒度的类别:
+
+#table(
+  columns: (1fr, 2fr, 2fr),
+  inset: 10pt,
+  align: horizon,
+  stroke: none,
+  table.header([*类别*], [*包含指令*], [*设计意图*]),
+  table.hline(),
+  [Control], [`if`, `br`, `call`, `block`], [捕获程序的逻辑骨架],
+  [Arith], [`add`, `sub`, `mul` (i32/i64)], [忽略类型宽度, 关注计算本质],
+  [Mem], [`load`, `store`], [捕获数据访问模式],
+  [Bit], [`and`, `or`, `shl`, `xor`], [位运算特征],
+  [Ignored], [`const`, `nop`, `drop`], [*抗干扰*: 忽略常量防止魔改],
+)
+
+= WAAP 抗攻击分析
+
+== 场景 1: 变量重命名与类型混淆
+
+攻击手段: 选手将 `int a` 改为 `long long b`, 并将所有变量名替换为随机字符串.
+
+WAAP 表现:
+
+- WASM 编译后变量名消失, 转为 Index.
+- 指令分类时合并了 `i32` 和 `i64` 的算术指令 (如 `i32.add` 和 `i64.add` 均视为 `ADD`) .
+- 生成的指令序列完全一致, 相似度 100%.
+
+== 场景 2: 控制流平坦化
+
+攻击手段:
+
+使用 OLLVM 将清晰的 `if-else` 逻辑打碎成一个巨大的 `switch-case` 状态机.
+
+WAAP 表现:
+
+- 静态分析会看到 CFG (Control Flow Graph) 变得极其复杂.
+- 动态执行流关注的是 *实际执行的路径*.
+- 尽管中间插入了分发块 (Dispatcher) 的指令, 但核心计算逻辑的指令 *执行顺序* 依然被保留.
+- Winnowing 算法会保留核心逻辑片段的 Hash, 相似度依然很高.
+
+== 场景 3: 死代码注入与循环展开
+
+攻击手段: 在代码中随机插入大量无用的计算 (如 `int x = 1*2*3...`) , 或手动展开循环.
+
+WAAP 表现:
+
+- 死代码: 由于 Winnowing 选取局部 Hash 最大值, 插入的垃圾指令大多产生的 Hash 值较小, 会被算法筛掉.
+- 循环展开: 循环展开本质上是指令序列的重复. 向量空间模型基于频率统计, 重复的特征只会增加对应维度的权重, 而不会改变向量的方向 (余弦相似度对向量长度不敏感) .
+
+= WAAP 总结
+
+== 应用前景
+
+注意到这个方案把选手程序转化成了一组向量, 其实际起到的作用是一个 embedding.
+
+相似度只是两个向量最基本的特征.
+
+- 聚类?
+- 解法自动归类?
+- OI 外的应用?
+
+= 总结
+
+== WASM 的下一步应用
+
+WASM 下运行结果与硬件无关, Serverless OJ?
